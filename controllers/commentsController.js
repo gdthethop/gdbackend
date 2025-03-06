@@ -1,4 +1,4 @@
-const Comment = require('../models/comment'); // Import Comment model
+const Comment = require('../models/Comment'); // Import Comment model
 const Video = require('../models/video');  // Import Video model (for updating comment count)
 
 // Fetch all comments for a specific video
