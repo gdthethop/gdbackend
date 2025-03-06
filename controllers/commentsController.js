@@ -16,9 +16,15 @@ const getCommentsForVideo = async (req, res) => {
 const submitComment = async (req, res) => {
   const { text, videoId, user_id, name, date } = req.body;
 
+  console.log("Received comment data:", { text, videoId, user_id, name, date }); // Log incoming request data
+
   // Validate required fields
   if (!text || !videoId || !user_id || !name) {
-    return res.status(400).json({ message: "Missing required fields" });
+    console.log("Missing required fields:", { text, videoId, user_id, name });
+    return res.status(400).json({ 
+      message: "Missing required fields",
+      details: { text: !!text, videoId: !!videoId, user_id: !!user_id, name: !!name }
+    });
   }
 
   try {

@@ -18,7 +18,7 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 
 // Middleware
 app.use(cors({
-  origin: 'https://gdthethop.github.io',
+  origin: ['https://gdthethop.github.io', 'http://localhost:3000'],
   credentials: true
 }));
 app.use(express.json()); // To parse incoming JSON requests
