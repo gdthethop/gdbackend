@@ -6,8 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const videoRoutes = require('./routes/videos');
 const commentRoutes = require('./routes/comments'); 
 
-const app = express();
-console.log('All Environment Variables:', process.env); // Log all environment variables for debugging
+const app = express();// Log the JWT_SECRET for debugging
 console.log('JWT_SECRET:', process.env.JWT_SECRET); // Log the JWT_SECRET for debugging
 const PORT = process.env.PORT || 5000;
 
