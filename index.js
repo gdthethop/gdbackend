@@ -17,7 +17,10 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
     .catch((err) => console.error("MongoDB connection error:", err));
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://gdthethop.github.io',
+  credentials: true
+}));
 app.use(express.json()); // To parse incoming JSON requests
 
 // Use Authentication Routes
