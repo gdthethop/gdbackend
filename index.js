@@ -21,6 +21,9 @@ app.use(cors({
   origin: ['https://gdthethop.github.io', 'http://localhost:3000'],
   credentials: true
 }));
+
+// Handle preflight requests
+app.options('*', cors());
 app.use(express.json()); // To parse incoming JSON requests
 
 // Use Authentication Routes
