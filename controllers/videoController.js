@@ -4,7 +4,9 @@ const Video = require('../models/video');
 const getVideos = async (req, res) => {
   try {
     const videos = await Video.find();
-    res.status(200).json(videos);
+    // Filter out the link field before sending the response
+    const filteredVideos = videos.map(({ link, ...rest }) => rest);
+    res.status(200).json(filteredVideos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching videos", error });
   }
@@ -17,7 +19,9 @@ const getVideoById = async (req, res) => {
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
-    res.status(200).json(video);
+    // Filter out the link field before sending the response
+    const { link, ...rest } = video._doc;
+    res.status(200).json(rest);
   } catch (error) {
     res.status(500).json({ message: "Error fetching video", error });
   }
@@ -39,7 +43,8 @@ const uploadVideo = async (req, res) => {
     });
 
     await newVideo.save();
-    res.status(201).json({ message: "Video uploaded successfully", video: newVideo });
+    // Return only the necessary metadata
+    res.status(201).json({ message: "Video uploaded successfully", video: { title, description, genres, runtime, cast, thumbnail } });
   } catch (error) {
     res.status(500).json({ message: "Error uploading video", error });
   }
