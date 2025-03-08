@@ -3,50 +3,38 @@ const Video = require('../models/video');
 // Fetch all videos
 const getVideos = async (req, res) => {
   try {
-    const videos = await Video.find();
-    // Filter out the link field before sending the response
-    const filteredVideos = videos.map(({ link, ...rest }) => rest);
-    res.status(200).json(filteredVideos);
+    const videos = await Video.find({}, '-link'); // Exclude link field directly in the query
+    res.status(200).json(videos);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching videos", error });
+    res.status(500).json({ message: "Error fetching videos", error: error.message });
   }
 };
 
 // Fetch a specific video by ID
 const getVideoById = async (req, res) => {
   try {
-    const video = await Video.findById(req.params.id);
+    const video = await Video.findById(req.params.id).select('-link'); // Exclude link field
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
-    // Filter out the link field before sending the response
-    const { link, ...rest } = video._doc;
-    res.status(200).json(rest);
+    res.status(200).json(video);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching video", error });
+    res.status(500).json({ message: "Error fetching video", error: error.message });
   }
 };
 
 // Upload a new video
 const uploadVideo = async (req, res) => {
-  const { title, description, link, genres, runtime, cast, thumbnail } = req.body;
-
   try {
-    const newVideo = new Video({
-      title,
-      description,
-      link,
-      genres,
-      runtime,
-      cast,
-      thumbnail,
-    });
-
+    const { title, description, link, genres, runtime, cast, thumbnail } = req.body;
+    if (!title || !description || !link) {
+      return res.status(400).json({ message: "Title, description, and link are required" });
+    }
+    const newVideo = new Video({ title, description, link, genres, runtime, cast, thumbnail });
     await newVideo.save();
-    // Return only the necessary metadata
     res.status(201).json({ message: "Video uploaded successfully", video: { title, description, genres, runtime, cast, thumbnail } });
   } catch (error) {
-    res.status(500).json({ message: "Error uploading video", error });
+    res.status(500).json({ message: "Error uploading video", error: error.message });
   }
 };
 
@@ -57,13 +45,13 @@ const incrementViews = async (req, res) => {
       req.params.id,
       { $inc: { views: 1 } },
       { new: true }
-    );
+    ).select('-link');
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
     res.status(200).json(video);
   } catch (error) {
-    res.status(500).json({ message: "Error updating views", error });
+    res.status(500).json({ message: "Error updating views", error: error.message });
   }
 };
 
@@ -74,13 +62,13 @@ const incrementLikes = async (req, res) => {
       req.params.id,
       { $inc: { likes: 1 } },
       { new: true }
-    );
+    ).select('-link');
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
     res.status(200).json(video);
   } catch (error) {
-    res.status(500).json({ message: "Error updating likes", error });
+    res.status(500).json({ message: "Error updating likes", error: error.message });
   }
 };
 
