@@ -3,7 +3,7 @@ const Video = require('../models/video');
 // Fetch all videos
 const getVideos = async (req, res) => {
   try {
-    const videos = await Video.find({}, '-link'); // Exclude link field directly in the query
+    const videos = await Video.find(); // Include all fields in the query
     res.status(200).json(videos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching videos", error: error.message });
@@ -13,7 +13,7 @@ const getVideos = async (req, res) => {
 // Fetch a specific video by ID
 const getVideoById = async (req, res) => {
   try {
-    const video = await Video.findById(req.params.id).select('-link'); // Exclude link field
+    const video = await Video.findById(req.params.id); // Include all fields
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
