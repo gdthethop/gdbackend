@@ -1,6 +1,21 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+
+const allowedOrigins = ['https://gdthethop.github.io', 'http://localhost:3000'];
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true); // Allow non-browser requests like Postman or curl
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+};
+
 require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const videoRoutes = require('./routes/videos');
@@ -17,13 +32,10 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
     .catch((err) => console.error("MongoDB connection error:", err));
 
 // Middleware
-app.use(cors({
-  origin: ['https://gdthethop.github.io', 'http://localhost:3000'],
-  credentials: true
-}));
+app.use(cors(corsOptions));
 
 // Handle preflight requests
-app.options('*', cors());
+app.options('*', cors(corsOptions));
 app.use(express.json()); // To parse incoming JSON requests
 
 // Use Authentication Routes
