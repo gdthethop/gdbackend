@@ -5,6 +5,8 @@ const User = require('../models/User');
 const router = express.Router();
 
 // POST register route
+const { Types } = require('mongoose');
+
 router.post('/register', async (req, res) => {
     console.log('🔍 Received registration request with body:', req.body);
     const { name, email, password } = req.body;
@@ -25,8 +27,11 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'User already exists' });
         }
 
-        // Create new user
-        const newUser = new User({ name, email, password });
+        // Generate userId as a new ObjectId string
+        const userId = new Types.ObjectId().toString();
+
+        // Create new user with userId
+        const newUser = new User({ userId, name, email, password });
         await newUser.save();
 
         // Generate JWT token
