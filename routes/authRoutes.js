@@ -6,6 +6,7 @@ const router = express.Router();
 
 // POST register route
 router.post('/register', async (req, res) => {
+    console.log('🔍 Received registration request with body:', req.body);
     const { name, email, password } = req.body;
 
     console.log(`🔍 Received registration request - Name: ${name}, Email: ${email}`);
