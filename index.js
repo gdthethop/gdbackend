@@ -26,10 +26,28 @@ console.log('JWT_SECRET:', process.env.JWT_SECRET); // Log the JWT_SECRET for de
 const PORT = process.env.PORT || 5000;
 
 // MongoDB Connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/gdbackend'; // Replace with your MongoDB URI
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log("Connected to MongoDB"))
-    .catch((err) => console.error("MongoDB connection error:", err));
+const MONGO_URI = process.env.MONGO_URI || MONGO_URI; // Default to local MongoDB if not set
+
+if (!MONGO_URI) {
+  console.error('Error: MONGO_URI environment variable is not set.');
+  process.exit(1);
+}
+
+mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+
+const db = mongoose.connection;
+
+db.on('connected', () => {
+  console.log('MongoDB connected successfully');
+});
+
+db.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+db.on('disconnected', () => {
+  console.warn('MongoDB disconnected');
+});
 
 // Middleware
 app.use(cors(corsOptions));
