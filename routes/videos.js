@@ -1,16 +1,28 @@
 const express = require("express");
 const router = express.Router();
-const { getVideos, getVideoById, uploadVideo, incrementViews, incrementLikes, decrementLikes, incrementDislikes, decrementDislikes, getVideoByShortCode } = require("../controllers/videoController");  // Update the import path
+const {
+  getVideos,
+  getVideoById,
+  uploadVideo,
+  incrementViews,
+  incrementViewsByShortCode,
+  incrementLikes,
+  decrementLikes,
+  incrementDislikes,
+  decrementDislikes,
+  getVideoByShortCode,
+} = require("../controllers/videoController");
 
 // Routes
-router.get("/", getVideos);  // Fetch all videos
-router.get("/:id", getVideoById);  // Fetch a video by ID
-router.get("/short/:shortCode", getVideoByShortCode); // Fetch video by shortCode
-router.post("/upload", uploadVideo);  // Upload a new video
-router.patch("/:id/incrementViews", incrementViews);  // Increment views
-router.patch("/:id/incrementLikes", incrementLikes);  // Increment likes
-router.patch("/:id/decrementLikes", decrementLikes);  // Decrement likes (unlike)
-router.patch("/:id/incrementDislikes", incrementDislikes);  // Increment dislikes
-router.patch("/:id/decrementDislikes", decrementDislikes);  // Decrement dislikes (undislike)
+router.get("/", getVideos);
+router.get("/:id", getVideoById);
+router.get("/short/:shortCode", getVideoByShortCode);
+router.post("/upload", uploadVideo);
+router.patch("/:id/incrementViews", incrementViews);
+router.patch("/short/:shortCode/incrementViews", incrementViewsByShortCode);
+router.patch("/:id/incrementLikes", incrementLikes);
+router.patch("/:id/decrementLikes", decrementLikes);
+router.patch("/:id/incrementDislikes", incrementDislikes);
+router.patch("/:id/decrementDislikes", decrementDislikes);
 
 module.exports = router;
