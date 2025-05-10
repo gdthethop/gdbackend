@@ -37,6 +37,23 @@ const getVideoByShortCode = async (req, res) => {
   }
 };
 
+// Increment views by shortCode
+const incrementViewsByShortCode = async (req, res) => {
+  try {
+    const video = await Video.findOneAndUpdate(
+      { shortCode: req.params.shortCode },
+      { $inc: { views: 1 } },
+      { new: true }
+    ).select('-link');
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.status(200).json(video);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating views", error: error.message });
+  }
+};
+
 // Upload a new video
 const uploadVideo = async (req, res) => {
   try {
@@ -149,6 +166,7 @@ module.exports = {
   getVideos,
   getVideoById,
   getVideoByShortCode,
+  incrementViewsByShortCode,
   uploadVideo,
   incrementViews,
   incrementLikes,
