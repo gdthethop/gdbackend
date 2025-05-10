@@ -1,4 +1,5 @@
 const Video = require('../models/video');
+const crypto = require('crypto');
 
 // Fetch all videos
 const getVideos = async (req, res) => {
@@ -23,6 +24,19 @@ const getVideoById = async (req, res) => {
   }
 };
 
+// Fetch a video by shortCode
+const getVideoByShortCode = async (req, res) => {
+  try {
+    const video = await Video.findOne({ shortCode: req.params.shortCode });
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.status(200).json(video);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching video", error: error.message });
+  }
+};
+
 // Upload a new video
 const uploadVideo = async (req, res) => {
   try {
@@ -30,9 +44,19 @@ const uploadVideo = async (req, res) => {
     if (!title || !description || !link) {
       return res.status(400).json({ message: "Title, description, and link are required" });
     }
-    const newVideo = new Video({ title, description, link, genres, runtime, cast, thumbnail });
+    // Generate a unique shortCode
+    let shortCode;
+    let isUnique = false;
+    while (!isUnique) {
+      shortCode = crypto.randomBytes(3).toString('hex'); // 6 characters
+      const existing = await Video.findOne({ shortCode });
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+    const newVideo = new Video({ title, description, link, genres, runtime, cast, thumbnail, shortCode });
     await newVideo.save();
-    res.status(201).json({ message: "Video uploaded successfully", video: { title, description, genres, runtime, cast, thumbnail } });
+    res.status(201).json({ message: "Video uploaded successfully", video: { title, description, genres, runtime, cast, thumbnail, shortCode } });
   } catch (error) {
     res.status(500).json({ message: "Error uploading video", error: error.message });
   }
@@ -75,6 +99,7 @@ const incrementLikes = async (req, res) => {
 module.exports = {
   getVideos,
   getVideoById,
+  getVideoByShortCode,
   uploadVideo,
   incrementViews,
   incrementLikes,

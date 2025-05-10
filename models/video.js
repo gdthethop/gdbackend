@@ -10,6 +10,7 @@ const videoSchema = new mongoose.Schema({
   thumbnail: String,
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },
+  shortCode: { type: String, unique: true, sparse: true }, // Added shortCode field
   createdAt: { type: Date, default: Date.now },
 });
 
