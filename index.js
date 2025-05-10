@@ -2,17 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-const allowedOrigins = ['https://gdthethop.github.io', 'http://localhost:3000'];
-
 const corsOptions = {
-  origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // Allow non-browser requests like Postman or curl
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins temporarily for testing
   credentials: true,
 };
 
