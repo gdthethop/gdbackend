@@ -62,7 +62,6 @@ const uploadVideo = async (req, res) => {
   }
 };
 
-// Increment views
 const incrementViews = async (req, res) => {
   try {
     const video = await Video.findByIdAndUpdate(
@@ -79,7 +78,6 @@ const incrementViews = async (req, res) => {
   }
 };
 
-// Increment likes
 const incrementLikes = async (req, res) => {
   try {
     const video = await Video.findByIdAndUpdate(
@@ -96,6 +94,57 @@ const incrementLikes = async (req, res) => {
   }
 };
 
+// Decrement likes (unlike)
+const decrementLikes = async (req, res) => {
+  try {
+    const video = await Video.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { likes: -1 } },
+      { new: true }
+    ).select('-link');
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.status(200).json(video);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating likes", error: error.message });
+  }
+};
+
+// Increment dislikes
+const incrementDislikes = async (req, res) => {
+  try {
+    const video = await Video.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { dislikes: 1 } },
+      { new: true }
+    ).select('-link');
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.status(200).json(video);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating dislikes", error: error.message });
+  }
+};
+
+// Decrement dislikes (undislike)
+const decrementDislikes = async (req, res) => {
+  try {
+    const video = await Video.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { dislikes: -1 } },
+      { new: true }
+    ).select('-link');
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.status(200).json(video);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating dislikes", error: error.message });
+  }
+};
+
 module.exports = {
   getVideos,
   getVideoById,
@@ -103,4 +152,7 @@ module.exports = {
   uploadVideo,
   incrementViews,
   incrementLikes,
+  decrementLikes,
+  incrementDislikes,
+  decrementDislikes,
 };
