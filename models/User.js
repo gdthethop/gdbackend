@@ -9,10 +9,13 @@ const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    profileIcon: { type: String },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
 }, { collection: 'users' });
 
 // Pre-save hook to hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
     const user = this;
 
     if (!user.isModified('password')) return next();
@@ -28,7 +31,7 @@ userSchema.pre('save', async function(next) {
 });
 
 // Method to compare password during login using bcrypt
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
