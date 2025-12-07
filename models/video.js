@@ -4,9 +4,7 @@ const videoSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, required: true },
   link: { type: String, required: true },
-  genres: [String],
-  runtime: String,
-  cast: [String],
+  genres: [String], // Will store Playlist Name(s)
   thumbnail: String,
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },

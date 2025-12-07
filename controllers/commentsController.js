@@ -16,12 +16,12 @@ const getCommentsForVideo = async (req, res) => {
 const submitComment = async (req, res) => {
   const { text, videoId, user_id, name, date } = req.body;
 
-  console.log("Received comment data:", { text, videoId, user_id, name, date }); // Log incoming request data
+
 
   // Validate required fields
   if (!text || !videoId || !user_id || !name) {
-    console.log("Missing required fields:", { text, videoId, user_id, name });
-    return res.status(400).json({ 
+
+    return res.status(400).json({
       message: "Missing required fields",
       details: { text: !!text, videoId: !!videoId, user_id: !!user_id, name: !!name }
     });
@@ -41,13 +41,13 @@ const submitComment = async (req, res) => {
     // Optionally, increment the comment count for the video (if needed)
     await Video.findByIdAndUpdate(videoId, { $inc: { commentCount: 1 } });
 
-    console.log("New comment saved:", newComment); // Log the saved comment for debugging
+
     res.status(201).json({ message: "Comment added successfully", comment: newComment });
   } catch (error) {
     console.error("Error adding comment:", error); // Log the error for debugging
-    res.status(500).json({ 
-      message: "Error adding comment", 
-      error: error.message || error 
+    res.status(500).json({
+      message: "Error adding comment",
+      error: error.message || error
     });
   }
 };
