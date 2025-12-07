@@ -20,22 +20,29 @@ const {
   createPlaylist
 } = require("../controllers/videoController");
 
+const { protect } = require("../middleware/authMiddleware");
+
 // Routes
+
+// Public Routes (No Auth Required)
+router.get("/playlists", protect, getPlaylists); // Only logged-in users typically fetch their OWN playlists in selector context
 router.get("/", getVideos);
-router.get("/playlists", getPlaylists);
-router.post("/playlists", createPlaylist);
 router.get("/:id", getVideoById);
 router.get("/short/:shortCode", getVideoByShortCode);
-router.post("/upload-raw", upload.single('video'), uploadRawVideo);
-router.post("/upload-thumbnail", upload.single('thumbnail'), uploadThumbnail);
-router.post("/generate-thumbnails", generateThumbnails);
-router.post("/publish", publishVideo);
-// router.post("/upload", upload.fields ... ) // Keep or comment out legacy
 router.patch("/:id/incrementViews", incrementViews);
 router.patch("/short/:shortCode/incrementViews", incrementViewsByShortCode);
-router.patch("/:id/incrementLikes", incrementLikes);
-router.patch("/:id/decrementLikes", decrementLikes);
-router.patch("/:id/incrementDislikes", incrementDislikes);
-router.patch("/:id/decrementDislikes", decrementDislikes);
+
+// Protected Routes (Auth Required)
+router.post("/playlists", protect, createPlaylist);
+router.post("/upload-raw", protect, upload.single('video'), uploadRawVideo);
+router.post("/upload-thumbnail", protect, upload.single('thumbnail'), uploadThumbnail);
+router.post("/generate-thumbnails", protect, generateThumbnails);
+router.post("/publish", protect, publishVideo);
+
+// Interaction Routes (Auth Required) - YouTube requires login to like/dislike
+router.patch("/:id/incrementLikes", protect, incrementLikes);
+router.patch("/:id/decrementLikes", protect, decrementLikes);
+router.patch("/:id/incrementDislikes", protect, incrementDislikes);
+router.patch("/:id/decrementDislikes", protect, decrementDislikes);
 
 module.exports = router;

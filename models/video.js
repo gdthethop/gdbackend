@@ -9,7 +9,9 @@ const videoSchema = new mongoose.Schema({
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },
   dislikes: { type: Number, default: 0 },
-  shortCode: { type: String, unique: true, sparse: true }, // Added shortCode field
+  shortCode: { type: String, unique: true, sparse: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Verified Uploader
+  scheduledPublishDate: { type: Date }, // Feature: Scheduled Publishing
   createdAt: { type: Date, default: Date.now },
 });
 

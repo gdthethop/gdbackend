@@ -2,6 +2,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Session = require('../models/Session');
 const router = express.Router();
 
 // POST register route
@@ -47,9 +48,16 @@ router.post('/register', async (req, res) => {
         const newUser = new User({ userId, name, email, password, profileIcon: defaultAvatar });
         await newUser.save();
 
-        // Generate JWT token
-        const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        // Create Session (same as login)
+        const session = new Session({
+            user: newUser._id,
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent']
+        });
+        await session.save();
 
+        // Generate JWT token (Include sessionId)
+        const token = jwt.sign({ userId: newUser._id, sessionId: session._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.status(201).json({ message: 'User registered successfully', user: { name: newUser.name, email: newUser.email, profileIcon: newUser.profileIcon }, token });
     } catch (error) {
@@ -75,23 +83,53 @@ router.post('/login', async (req, res) => {
         // Query the database for the user
         const user = await User.findOne({ email });
 
-
         if (!user) {
-
             return res.status(400).json({ error: 'Invalid email or password' });
         }
 
         // Compare passwords using comparePassword method
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-
             return res.status(400).json({ error: 'Invalid email or password' });
         }
 
-        // Generate JWT token
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        // Check for 2FA
+        if (user.isTwoFactorEnabled) {
+            const { token: twoFactorToken } = req.body;
+
+            if (!twoFactorToken) {
+                // Tell frontend to prompt for 2FA code
+                // We don't issue the real JWT yet.
+                // We could issue a temp token with limited scope, BUT for simplicity:
+                // Frontend simply receives "requires2FA: true" and prompts user.
+                // Then User resends /login with email, password, AND token.
+                return res.json({ requires2FA: true, message: 'Please enter your 2FA code' });
+            }
+
+            // Verify the provided token
+            const verified = speakeasy.totp.verify({
+                secret: user.twoFactorSecret,
+                encoding: 'base32',
+                token: twoFactorToken
+            });
+
+            if (!verified) {
+                return res.status(400).json({ error: 'Invalid 2FA Code' });
+            }
+        }
 
 
+
+        // Create Session
+        const session = new Session({
+            user: user._id,
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent']
+        });
+        await session.save();
+
+        // Generate JWT token (Includes sessionId)
+        const token = jwt.sign({ userId: user._id, sessionId: session._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         // Return the response with token and user data
         res.json({
@@ -255,6 +293,126 @@ router.put('/update-profile', async (req, res) => {
     } catch (error) {
         console.error('❌ Update profile error:', error);
         res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+// 2FA Routes
+
+// 1. Generate 2FA Secret & QR Code
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
+const { protect } = require('../middleware/authMiddleware'); // Assuming we can use this
+
+router.post('/2fa/generate', protect, async (req, res) => {
+    try {
+        const secret = speakeasy.generateSecret({
+            name: `GdPlayer (${req.user.email})`
+        });
+
+        // Save secret to user (temporarily or permanently? Standard is permanently but disabled until verify)
+        req.user.twoFactorSecret = secret.base32;
+        await req.user.save();
+
+        // Generate QR Code
+        QRCode.toDataURL(secret.otpauth_url, (err, data_url) => {
+            if (err) return res.status(500).json({ error: 'Error generating QR Code' });
+
+            res.json({
+                message: '2FA Secret generated',
+                secret: secret.base32,
+                qrCode: data_url
+            });
+        });
+    } catch (error) {
+        console.error('2FA Generate Error:', error);
+        res.status(500).json({ error: 'Failed to generate 2FA secret' });
+    }
+});
+
+// 2. Verify 2FA Token & Enable
+router.post('/2fa/verify', protect, async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+
+    try {
+        const verified = speakeasy.totp.verify({
+            secret: req.user.twoFactorSecret,
+            encoding: 'base32',
+            token: token
+        });
+
+        if (verified) {
+            req.user.isTwoFactorEnabled = true;
+            await req.user.save();
+            res.json({ message: 'Two-Factor Authentication enabled successfully!' });
+        } else {
+            res.status(400).json({ error: 'Invalid token' });
+        }
+    } catch (error) {
+        console.error('2FA Verify Error:', error);
+        res.status(500).json({ error: 'Failed to verify 2FA token' });
+    }
+});
+
+// 3. Disable 2FA
+router.post('/2fa/disable', protect, async (req, res) => {
+    try {
+        req.user.isTwoFactorEnabled = false;
+        req.user.twoFactorSecret = undefined;
+        await req.user.save();
+        res.json({ message: 'Two-Factor Authentication disabled.' });
+    } catch (error) {
+        console.error('2FA Disable Error:', error);
+        res.status(500).json({ error: 'Failed to disable 2FA' });
+    }
+});
+
+// 4. Session Management Routes
+router.get('/sessions', protect, async (req, res) => {
+    try {
+        const sessions = await Session.find({ user: req.user._id, isValid: true }).sort({ lastActive: -1 });
+        // Identify current session
+        // Note: req.user doesn't have sessionId, we need to pass it from middleware or decode token again
+        // Actually, let's update middleware to attach sessionId to req if possible, 
+        // OR just parse it from auth header here.
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.decode(token);
+        const currentSessionId = decoded.sessionId;
+
+        const sessionList = sessions.map(s => ({
+            _id: s._id,
+            ipAddress: s.ipAddress,
+            userAgent: s.userAgent,
+            lastActive: s.lastActive,
+            createdAt: s.createdAt,
+            isCurrent: s._id.toString() === currentSessionId
+        }));
+
+        res.json(sessionList);
+    } catch (error) {
+        console.error('Get Sessions Error:', error);
+        res.status(500).json({ error: 'Failed to fetch sessions' });
+    }
+});
+
+router.delete('/sessions/:id', protect, async (req, res) => {
+    try {
+        const sessionId = req.params.id;
+        // Ensure user owns this session
+        const session = await Session.findOne({ _id: sessionId, user: req.user._id });
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        // Revoke
+        session.isValid = false; // Soft delete mechanism
+        await session.save();
+        // Or await Session.findByIdAndDelete(sessionId);
+
+        res.json({ message: 'Session revoked' });
+    } catch (error) {
+        console.error('Revoke Session Error:', error);
+        res.status(500).json({ error: 'Failed to revoke session' });
     }
 });
 

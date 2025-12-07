@@ -6,9 +6,9 @@ const playlistSchema = new mongoose.Schema({
         required: true,
     },
     user: {
-        type: String, // Or mongoose.Schema.Types.ObjectId if you have Auth
-        required: true,
-        default: 'anonymous',
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     videos: [{
         type: mongoose.Schema.Types.ObjectId,

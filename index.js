@@ -48,6 +48,12 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/history', require('./routes/historyRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/multipart-upload', require('./routes/multipartUploadRoutes'));
 
 // Serve static files from the React app build directory
 const buildPath = path.join(__dirname, '..', 'Gdplayer', 'build');

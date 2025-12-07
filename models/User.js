@@ -12,6 +12,9 @@ const userSchema = new mongoose.Schema({
     profileIcon: { type: String },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    twoFactorSecret: { type: String }, // Stores the base32 secret
+    isTwoFactorEnabled: { type: Boolean, default: false },
+    watchLater: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }]
 }, { collection: 'users' });
 
 // Pre-save hook to hash password before saving

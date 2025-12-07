@@ -1,4 +1,4 @@
-const Video = require('../models/video');
+const Video = require('../models/Video');
 const Playlist = require('../models/Playlist');
 const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');
@@ -14,7 +14,21 @@ const { Upload } = require('@aws-sdk/lib-storage'); // Helper for potentially la
 // Fetch all videos
 const getVideos = async (req, res) => {
   try {
-    const videos = await Video.find().sort({ createdAt: -1 });
+    const { genre } = req.query;
+    let query = {
+      $or: [
+        { scheduledPublishDate: { $exists: false } },
+        { scheduledPublishDate: null },
+        { scheduledPublishDate: { $lte: new Date() } }
+      ]
+    };
+
+    if (genre && genre !== 'All') {
+      // genres is an array in schema, so simple value match works for "contains"
+      query.genres = genre;
+    }
+
+    const videos = await Video.find(query).sort({ createdAt: -1 });
     res.status(200).json(videos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching videos", error: error.message });
@@ -24,7 +38,7 @@ const getVideos = async (req, res) => {
 // Fetch a specific video by ID
 const getVideoById = async (req, res) => {
   try {
-    const video = await Video.findById(req.params.id);
+    const video = await Video.findById(req.params.id).populate('userId', 'name profileIcon');
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
@@ -37,7 +51,7 @@ const getVideoById = async (req, res) => {
 // Fetch a video by shortCode
 const getVideoByShortCode = async (req, res) => {
   try {
-    const video = await Video.findOne({ shortCode: req.params.shortCode });
+    const video = await Video.findOne({ shortCode: req.params.shortCode }).populate('userId', 'name profileIcon');
     if (!video) {
       return res.status(404).json({ message: "Video not found" });
     }
@@ -200,7 +214,7 @@ const generateThumbnails = async (req, res) => {
 // 3. Publish (Finalize) Video
 const publishVideo = async (req, res) => {
   try {
-    const { title, description, playlistNames, videoUrl, thumbnailUrl } = req.body;
+    const { title, description, playlistNames, videoUrl, thumbnailUrl, scheduledPublishDate } = req.body;
 
     if (!videoUrl) return res.status(400).json({ message: "Video URL is missing" });
 
@@ -229,16 +243,22 @@ const publishVideo = async (req, res) => {
       link: videoUrl,
       thumbnail: thumbnailUrl || "https://placehold.co/600x400?text=No+Thumbnail",
       genres: parsedPlaylists,
-      shortCode
+      shortCode,
+      userId: req.user._id, // Assign video to the logged-in user
+      scheduledPublishDate: scheduledPublishDate || null
     });
 
     const savedVideo = await newVideo.save();
 
     if (parsedPlaylists && parsedPlaylists.length > 0) {
       for (const pname of parsedPlaylists) {
-        let playlist = await Playlist.findOne({ title: pname });
+        let playlist = await Playlist.findOne({ title: pname, user: req.user._id });
         if (!playlist) {
-          playlist = new Playlist({ title: pname, videos: [savedVideo._id] });
+          playlist = new Playlist({
+            title: pname,
+            videos: [savedVideo._id],
+            user: req.user._id
+          });
         } else {
           playlist.videos.push(savedVideo._id);
         }
@@ -264,7 +284,7 @@ const uploadVideo = async (req, res) => {
 
 const getPlaylists = async (req, res) => {
   try {
-    const playlists = await Playlist.find().populate('videos');
+    const playlists = await Playlist.find({ user: req.user._id }).populate('videos');
     res.status(200).json(playlists);
   } catch (error) {
     res.status(500).json({ message: "Error fetching playlists", error: error.message });
@@ -274,7 +294,10 @@ const getPlaylists = async (req, res) => {
 const createPlaylist = async (req, res) => {
   try {
     const { title } = req.body;
-    const newPlaylist = new Playlist({ title });
+    const newPlaylist = new Playlist({
+      title,
+      user: req.user._id
+    });
     await newPlaylist.save();
     res.status(201).json(newPlaylist);
   } catch (error) {
