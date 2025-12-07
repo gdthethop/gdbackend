@@ -1,0 +1,37 @@
+# Render Blueprint for GD Player Backend
+# This file enables one-click deployment to Render.com
+
+services:
+  - type: web
+    name: gdplayer-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_BUCKET_NAME
+        value: gdplayervideos
+      - key: AWS_BUCKET_NAME_THUMBNAILS
+        value: gdplayerthubnails
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: FRONTEND_URL
+        value: https://gdthethop.github.io/Gdplayer
