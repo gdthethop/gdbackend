@@ -1,5 +1,5 @@
 const WatchHistory = require('../models/WatchHistory');
-const Video = require('../models/Video');
+const Video = require('../models/video');
 
 // Add or Update History
 exports.addToHistory = async (req, res) => {

@@ -1,4 +1,4 @@
-const Video = require('../models/Video');
+const Video = require('../models/video');
 
 exports.getCreatorStats = async (req, res) => {
     try {

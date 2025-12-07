@@ -1,4 +1,4 @@
-const Video = require('../models/Video');
+const Video = require('../models/video');
 const Playlist = require('../models/Playlist');
 const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');

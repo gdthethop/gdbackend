@@ -1,5 +1,5 @@
 const Comment = require('../models/Comment'); // Import Comment model
-const Video = require('../models/Video');  // Import Video model (for updating comment count)
+const Video = require('../models/video');  // Import Video model (for updating comment count)
 const { createNotification } = require('./notificationController');
 
 // Fetch all comments for a specific video
