@@ -1,21 +1,52 @@
 const Comment = require('../models/Comment'); // Import Comment model
 const Video = require('../models/video');  // Import Video model (for updating comment count)
+const mongoose = require('mongoose');
 const { createNotification } = require('./notificationController');
 
 // Fetch all comments for a specific video
+// Fetch all comments for a specific video
 const getCommentsForVideo = async (req, res) => {
-  const { videoId } = req.params;
+  let { videoId } = req.params;
+  console.log(`[getCommentsForVideo] Fetching comments for: ${videoId}`);
+
   try {
-    const comments = await Comment.find({ video_id: videoId }).populate('user_id', 'name profileIcon'); // Populate user name and icon
+    let resolvedVideoId = videoId;
+
+    // Check if valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      console.log(`[getCommentsForVideo] '${videoId}' is not a valid ObjectId, searching by shortCode...`);
+      const video = await Video.findOne({ shortCode: videoId }).select('_id');
+
+      if (!video) {
+        console.warn(`[getCommentsForVideo] Video not found for identifier: ${videoId}`);
+        return res.status(404).json({ message: "Video not found" });
+      }
+      resolvedVideoId = video._id;
+      console.log(`[getCommentsForVideo] Resolved shortCode to _id: ${resolvedVideoId}`);
+    }
+
+    // Fetch comments
+    const comments = await Comment.find({ video_id: resolvedVideoId })
+      .populate('user_id', 'name profileIcon')
+      .sort({ date: -1 }); // Sort by newest first
+
+    console.log(`[getCommentsForVideo] Found ${comments.length} comments.`);
     res.status(200).json(comments);
+
   } catch (error) {
-    res.status(500).json({ message: "Error fetching comments", error });
+    console.error("[getCommentsForVideo] Critical Error:", error);
+    res.status(500).json({
+      message: "Error fetching comments",
+      error: error.message,
+      // Include stack trace only if needed/safe (usually strictly dev)
+      details: error.toString()
+    });
   }
 };
 
 // Submit a new comment
 const submitComment = async (req, res) => {
-  const { text, videoId, user_id, name, date, parentId } = req.body;
+  let { text, videoId, user_id, name, date, parentId } = req.body;
 
   // Validate required fields
   if (!text || !videoId || !user_id || !name) {
@@ -27,6 +58,15 @@ const submitComment = async (req, res) => {
   }
 
   try {
+    // Resolve videoId if it's a shortCode
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      const video = await Video.findOne({ shortCode: videoId });
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+      videoId = video._id;
+    }
+
     const newComment = new Comment({
       text,
       video_id: videoId,

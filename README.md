@@ -1,6 +1,6 @@
 # GdPlayer Backend API
 
-> **Version:** 1.3.0  
+> **Version:** 1.3.1
 > **Status:** Stable / Production Ready
 
 ## 🎯 Main Goal

@@ -28,7 +28,7 @@ const getVideos = async (req, res) => {
       query.genres = genre;
     }
 
-    const videos = await Video.find(query).sort({ createdAt: -1 });
+    const videos = await Video.find(query).sort({ createdAt: -1 }).populate('userId', 'name');
     res.status(200).json(videos);
   } catch (error) {
     res.status(500).json({ message: "Error fetching videos", error: error.message });

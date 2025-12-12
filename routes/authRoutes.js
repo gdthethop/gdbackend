@@ -59,7 +59,17 @@ router.post('/register', async (req, res) => {
         // Generate JWT token (Include sessionId)
         const token = jwt.sign({ userId: newUser._id, sessionId: session._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-        res.status(201).json({ message: 'User registered successfully', user: { name: newUser.name, email: newUser.email, profileIcon: newUser.profileIcon }, token });
+        res.status(201).json({
+            message: 'User registered successfully',
+            user: {
+                _id: newUser._id,
+                id: newUser._id,
+                name: newUser.name,
+                email: newUser.email,
+                profileIcon: newUser.profileIcon
+            },
+            token
+        });
     } catch (error) {
         console.error('❌ Registration error:', error);
         // Return detailed error message for debugging
@@ -134,7 +144,13 @@ router.post('/login', async (req, res) => {
         // Return the response with token and user data
         res.json({
             token,
-            user: { name: user.name, email: user.email, profileIcon: user.profileIcon },
+            user: {
+                _id: user._id,
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                profileIcon: user.profileIcon
+            },
         });
     } catch (error) {
         console.error('❌ Server error:', error);
@@ -285,6 +301,8 @@ router.put('/update-profile', async (req, res) => {
         res.json({
             message: 'Profile updated successfully',
             user: {
+                _id: user._id,
+                id: user._id,
                 name: user.name,
                 email: user.email,
                 profileIcon: user.profileIcon
