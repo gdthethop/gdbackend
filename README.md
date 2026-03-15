@@ -33,7 +33,7 @@ The **GdPlayer Backend** is the powerhouse behind the applications streaming cap
 - **Framework:** Express.js
 - **Database:** MongoDB (Mongoose)
 - **Object Storage:** AWS S3 (handling video & image assets)
-- **Deployment:** Render / Docker ready
+- **Deployment:** Vercel / Render / Docker ready
 
 ## 🔧 Installation & Setup
 
