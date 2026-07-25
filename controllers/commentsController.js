@@ -1,10 +1,13 @@
-const Comment = require('../models/Comment'); // Import Comment model
-const Video = require('../models/video');  // Import Video model (for updating comment count)
+const Comment = require('../models/Comment');
+const Video   = require('../models/video');
 const mongoose = require('mongoose');
 const { createNotification } = require('./notificationController');
 
-// Fetch all comments for a specific video
-// Fetch all comments for a specific video
+/**
+ * GET /api/comments/:videoId/comments
+ * Fetches all comments for a video, sorted newest-first.
+ * Accepts either a MongoDB ObjectId or a shortCode as the videoId parameter.
+ */
 const getCommentsForVideo = async (req, res) => {
   let { videoId } = req.params;
   console.log(`[getCommentsForVideo] Fetching comments for: ${videoId}`);
@@ -12,58 +15,54 @@ const getCommentsForVideo = async (req, res) => {
   try {
     let resolvedVideoId = videoId;
 
-    // Check if valid ObjectId
+    // If not a valid ObjectId, treat it as a shortCode and resolve to _id
     if (!mongoose.Types.ObjectId.isValid(videoId)) {
       console.log(`[getCommentsForVideo] '${videoId}' is not a valid ObjectId, searching by shortCode...`);
       const video = await Video.findOne({ shortCode: videoId }).select('_id');
-
       if (!video) {
         console.warn(`[getCommentsForVideo] Video not found for identifier: ${videoId}`);
-        return res.status(404).json({ message: "Video not found" });
+        return res.status(404).json({ message: 'Video not found' });
       }
       resolvedVideoId = video._id;
       console.log(`[getCommentsForVideo] Resolved shortCode to _id: ${resolvedVideoId}`);
     }
 
-    // Fetch comments
     const comments = await Comment.find({ video_id: resolvedVideoId })
       .populate('user_id', 'name profileIcon')
-      .sort({ date: -1 }); // Sort by newest first
+      .sort({ date: -1 });
 
     console.log(`[getCommentsForVideo] Found ${comments.length} comments.`);
     res.status(200).json(comments);
 
   } catch (error) {
-    console.error("[getCommentsForVideo] Critical Error:", error);
-    res.status(500).json({
-      message: "Error fetching comments",
-      error: error.message,
-      // Include stack trace only if needed/safe (usually strictly dev)
-      details: error.toString()
-    });
+    console.error('[getCommentsForVideo] Critical Error:', error);
+    res.status(500).json({ message: 'Error fetching comments', error: error.message });
   }
 };
 
-// Submit a new comment
+/**
+ * POST /api/comments/:videoId/comments
+ * Submits a new comment (or reply) on a video.
+ * Sends notifications to:
+ *   - The parent comment author (if this is a reply)
+ *   - The video owner (for top-level comments, or replies not targeting the owner)
+ * Body: { text, videoId, user_id, name, date?, parentId? }
+ */
 const submitComment = async (req, res) => {
   let { text, videoId, user_id, name, date, parentId } = req.body;
 
-  // Validate required fields
   if (!text || !videoId || !user_id || !name) {
-
     return res.status(400).json({
-      message: "Missing required fields",
-      details: { text: !!text, videoId: !!videoId, user_id: !!user_id, name: !!name }
+      message: 'Missing required fields',
+      details: { text: !!text, videoId: !!videoId, user_id: !!user_id, name: !!name },
     });
   }
 
   try {
-    // Resolve videoId if it's a shortCode
+    // Resolve shortCode to ObjectId if needed
     if (!mongoose.Types.ObjectId.isValid(videoId)) {
       const video = await Video.findOne({ shortCode: videoId });
-      if (!video) {
-        return res.status(404).json({ message: "Video not found" });
-      }
+      if (!video) return res.status(404).json({ message: 'Video not found' });
       videoId = video._id;
     }
 
@@ -72,18 +71,16 @@ const submitComment = async (req, res) => {
       video_id: videoId,
       user_id,
       name,
-      date: date || new Date(), // Use current date if not provided
-      parentId: parentId || null
+      date:     date || new Date(),
+      parentId: parentId || null,
     });
-
     await newComment.save();
 
-    // Optionally, increment the comment count for the video (if needed)
+    // Increment comment count on the video and populate the owner for notifications
     const video = await Video.findByIdAndUpdate(videoId, { $inc: { commentCount: 1 } }).populate('userId');
 
-    // Notifications
+    // Notify parent comment author (if this is a reply and not self-replying)
     let parentComment = null;
-    // 1. If replying to a comment, notify parent comment user
     if (parentId) {
       parentComment = await Comment.findById(parentId);
       if (parentComment && parentComment.user_id.toString() !== user_id.toString()) {
@@ -95,16 +92,11 @@ const submitComment = async (req, res) => {
         );
       }
     }
-    // 2. Notify Video Owner (if not self-comment)
-    // Note: video.userId is the uploader
-    if (video && video.userId && video.userId._id.toString() !== user_id.toString()) {
-      // Avoid double notification if replying to owner's comment?
-      // Logic: If I reply to Owner, Owner gets "Reply" notification. Should they also get "Comment on Video"? Maybe.
-      // For now, let's just notify video owner if it's a top-level comment OR if we want to be chatty.
-      // Let's only notify Video Owner for top-level comments or if they are NOT the parent comment owner.
 
-      const isParentOwner = parentId && parentComment && parentComment.user_id.toString() === video.userId._id.toString();
-      if (!isParentOwner) {
+    // Notify video owner for top-level comments, or replies that don't target the owner
+    if (video && video.userId && video.userId._id.toString() !== user_id.toString()) {
+      const isReplyToOwner = parentId && parentComment && parentComment.user_id.toString() === video.userId._id.toString();
+      if (!isReplyToOwner) {
         await createNotification(
           video.userId._id,
           'comment',
@@ -114,59 +106,52 @@ const submitComment = async (req, res) => {
       }
     }
 
-
-    res.status(201).json({ message: "Comment added successfully", comment: newComment });
+    res.status(201).json({ message: 'Comment added successfully', comment: newComment });
   } catch (error) {
-    console.error("Error adding comment:", error); // Log the error for debugging
-    res.status(500).json({
-      message: "Error adding comment",
-      error: error.message || error
-    });
+    console.error('Error adding comment:', error);
+    res.status(500).json({ message: 'Error adding comment', error: error.message });
   }
 };
 
+/**
+ * PUT /api/comments/:commentId/like  [protected]
+ * Toggles a like on a comment. Automatically removes a dislike if one exists.
+ */
 const likeComment = async (req, res) => {
   try {
     const { commentId } = req.params;
-    // req.user from protect middleware
     const userId = req.user._id;
 
     const comment = await Comment.findById(commentId);
-    if (!comment) return res.status(404).json({ message: "Comment not found" });
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
 
-    // Remove from dislikes if present
-    if (comment.dislikes.includes(userId)) {
-      comment.dislikes.pull(userId);
-    }
-
-    // Toggle like
+    if (comment.dislikes.includes(userId)) comment.dislikes.pull(userId); // Remove conflicting dislike
     if (comment.likes.includes(userId)) {
-      comment.likes.pull(userId); // Unlike
+      comment.likes.pull(userId);  // Unlike
     } else {
-      comment.likes.push(userId); // Like
+      comment.likes.push(userId);  // Like
     }
 
     await comment.save();
     res.status(200).json(comment);
   } catch (error) {
-    res.status(500).json({ message: "Error liking comment", error: error.message });
+    res.status(500).json({ message: 'Error liking comment', error: error.message });
   }
 };
 
+/**
+ * PUT /api/comments/:commentId/dislike  [protected]
+ * Toggles a dislike on a comment. Automatically removes a like if one exists.
+ */
 const dislikeComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const userId = req.user._id;
 
     const comment = await Comment.findById(commentId);
-    if (!comment) return res.status(404).json({ message: "Comment not found" });
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
 
-    // Remove from likes if present
-    if (comment.likes.includes(userId)) {
-      comment.likes.pull(userId);
-    }
-
-    // Toggle dislike
+    if (comment.likes.includes(userId)) comment.likes.pull(userId); // Remove conflicting like
     if (comment.dislikes.includes(userId)) {
       comment.dislikes.pull(userId); // Undislike
     } else {
@@ -176,13 +161,8 @@ const dislikeComment = async (req, res) => {
     await comment.save();
     res.status(200).json(comment);
   } catch (error) {
-    res.status(500).json({ message: "Error disliking comment", error: error.message });
+    res.status(500).json({ message: 'Error disliking comment', error: error.message });
   }
 };
 
-module.exports = {
-  getCommentsForVideo,
-  submitComment,
-  likeComment,
-  dislikeComment
-};
+module.exports = { getCommentsForVideo, submitComment, likeComment, dislikeComment };

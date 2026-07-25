@@ -1,10 +1,10 @@
-const express = require("express");
-const router = express.Router();
-const { upload } = require("../config/s3");
+const express = require('express');
+const router  = express.Router();
+const { upload } = require('../config/s3');
 const {
   getVideos,
   getVideoById,
-  uploadVideo,
+  getVideoByShortCode,
   uploadRawVideo,
   uploadThumbnail,
   generateThumbnails,
@@ -16,35 +16,33 @@ const {
   decrementLikes,
   incrementDislikes,
   decrementDislikes,
-  getVideoByShortCode,
   getPlaylists,
-  createPlaylist
-} = require("../controllers/videoController");
+  createPlaylist,
+} = require('../controllers/videoController');
 
-const { protect } = require("../middleware/authMiddleware");
+const { protect } = require('../middleware/authMiddleware');
 
-// Routes
+// ─── Public Routes ────────────────────────────────────────────────────────────
+router.get('/',                              getVideos);
+router.get('/playlists',    protect,         getPlaylists);
+router.get('/:id/transcode-status',          getTranscodeStatus);
+router.get('/short/:shortCode',              getVideoByShortCode);
+router.get('/:id',                           getVideoById);
 
-// Public Routes (No Auth Required)
-router.get("/playlists", protect, getPlaylists);
-router.get("/", getVideos);
-router.get("/:id/transcode-status", getTranscodeStatus); // Poll HLS readiness
-router.get("/:id", getVideoById);
-router.get("/short/:shortCode", getVideoByShortCode);
-router.patch("/:id/incrementViews", incrementViews);
-router.patch("/short/:shortCode/incrementViews", incrementViewsByShortCode);
+router.patch('/:id/incrementViews',                            incrementViews);
+router.patch('/short/:shortCode/incrementViews',               incrementViewsByShortCode);
 
-// Protected Routes (Auth Required)
-router.post("/playlists", protect, createPlaylist);
-router.post("/upload-raw", protect, upload.single('video'), uploadRawVideo);
-router.post("/upload-thumbnail", protect, upload.single('thumbnail'), uploadThumbnail);
-router.post("/generate-thumbnails", protect, generateThumbnails);
-router.post("/publish", protect, publishVideo);
+// ─── Protected Routes (auth required) ────────────────────────────────────────
+router.post('/playlists',          protect,                    createPlaylist);
+router.post('/upload-raw',         protect, upload.single('video'),     uploadRawVideo);
+router.post('/upload-thumbnail',   protect, upload.single('thumbnail'), uploadThumbnail);
+router.post('/generate-thumbnails', protect,                  generateThumbnails);
+router.post('/publish',            protect,                    publishVideo);
 
-// Interaction Routes (Auth Required) - YouTube requires login to like/dislike
-router.patch("/:id/incrementLikes", protect, incrementLikes);
-router.patch("/:id/decrementLikes", protect, decrementLikes);
-router.patch("/:id/incrementDislikes", protect, incrementDislikes);
-router.patch("/:id/decrementDislikes", protect, decrementDislikes);
+// ─── Interaction Routes (auth required) ──────────────────────────────────────
+router.patch('/:id/incrementLikes',   protect, incrementLikes);
+router.patch('/:id/decrementLikes',   protect, decrementLikes);
+router.patch('/:id/incrementDislikes', protect, incrementDislikes);
+router.patch('/:id/decrementDislikes', protect, decrementDislikes);
 
 module.exports = router;
