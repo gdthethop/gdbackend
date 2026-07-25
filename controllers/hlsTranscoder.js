@@ -107,7 +107,7 @@ function transcodeRendition(inputPath, outputDir, rendition) {
         `-c:a aac`,
         `-b:a ${audioBitrate}`,
         `-ar 44100`,
-        `-hls_time 4`,
+        `-hls_time 6`,
         `-hls_playlist_type vod`,
         `-hls_segment_filename ${path.join(renditionDir, '%03d.ts')}`,
         `-hls_flags independent_segments`,

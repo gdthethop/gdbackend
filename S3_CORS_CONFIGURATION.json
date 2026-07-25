@@ -22,6 +22,6 @@
             "x-amz-request-id",
             "x-amz-id-2"
         ],
-        "MaxAgeSeconds": 3000
+        "MaxAgeSeconds": 86400
     }
 ]
