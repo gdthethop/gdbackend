@@ -1,16 +1,22 @@
-# Dependencies
+# Dependencies — never commit node_modules
 node_modules/
+
+# Lock file — Vercel installs from package.json directly
 package-lock.json
 
-# Environment variables
+# Environment variables — NEVER commit secrets
 .env
 .env.local
 .env.production
+.env.development
 
-# Temporary files
+# Temporary video processing directories
 tmp_thumbs/
 tmp_hls/
+
+# Logs
 *.log
+npm-debug.log*
 
 # OS files
 .DS_Store
@@ -22,6 +28,6 @@ Thumbs.db
 *.swp
 *.swo
 
-# Test files
+# Test coverage
 coverage/
 .nyc_output/
