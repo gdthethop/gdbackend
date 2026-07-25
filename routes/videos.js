@@ -9,6 +9,7 @@ const {
   uploadThumbnail,
   generateThumbnails,
   publishVideo,
+  getTranscodeStatus,
   incrementViews,
   incrementViewsByShortCode,
   incrementLikes,
@@ -25,8 +26,9 @@ const { protect } = require("../middleware/authMiddleware");
 // Routes
 
 // Public Routes (No Auth Required)
-router.get("/playlists", protect, getPlaylists); // Only logged-in users typically fetch their OWN playlists in selector context
+router.get("/playlists", protect, getPlaylists);
 router.get("/", getVideos);
+router.get("/:id/transcode-status", getTranscodeStatus); // Poll HLS readiness
 router.get("/:id", getVideoById);
 router.get("/short/:shortCode", getVideoByShortCode);
 router.patch("/:id/incrementViews", incrementViews);

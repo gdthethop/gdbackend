@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Session = require('../models/Session');
 const router = express.Router();
+const { OAuth2Client } = require('google-auth-library');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // POST register route
 const { Types } = require('mongoose');
@@ -431,6 +434,75 @@ router.delete('/sessions/:id', protect, async (req, res) => {
     } catch (error) {
         console.error('Revoke Session Error:', error);
         res.status(500).json({ error: 'Failed to revoke session' });
+    }
+});
+
+// POST /api/auth/google — Sign in or register with Google
+router.post('/google', async (req, res) => {
+    const { credential } = req.body; // Google ID token from frontend
+    if (!credential) {
+        return res.status(400).json({ error: 'Google credential is required' });
+    }
+
+    try {
+        // Verify the Google ID token
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        const { sub: googleId, email, name, picture } = payload;
+
+        // Upsert: find by googleId or by email (for users who previously registered with email)
+        let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+        if (!user) {
+            // New user — create account
+            const userId = new Types.ObjectId().toString();
+            user = new User({
+                userId,
+                name,
+                email,
+                googleId,
+                profileIcon: picture || 'https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png',
+                // password intentionally omitted — Google users don't have one
+            });
+            await user.save();
+        } else if (!user.googleId) {
+            // Existing email user signing in with Google for the first time — link accounts
+            user.googleId = googleId;
+            if (!user.profileIcon) user.profileIcon = picture;
+            await user.save();
+        }
+
+        // Create Session
+        const session = new Session({
+            user: user._id,
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent'],
+        });
+        await session.save();
+
+        // Issue JWT (same shape as regular login)
+        const token = jwt.sign(
+            { userId: user._id, sessionId: session._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.status(200).json({
+            token,
+            user: {
+                _id: user._id,
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                profileIcon: user.profileIcon,
+            },
+        });
+    } catch (error) {
+        console.error('❌ Google auth error:', error);
+        res.status(401).json({ error: 'Google authentication failed', details: error.message });
     }
 });
 

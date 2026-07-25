@@ -6,7 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { s3 } = require('../config/s3');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const { Upload } = require('@aws-sdk/lib-storage'); // Helper for potentially larger uploads if needed, or just PutObject
+const { Upload } = require('@aws-sdk/lib-storage');
+const { transcodeVideoToHLS } = require('./hlsTranscoder'); // HLS pipeline
 
 // Set ffmpeg path if not in global path (optional, depends on environment)
 // ffmpeg.setFfmpegPath('/usr/bin/ffmpeg'); 
@@ -120,94 +121,118 @@ const uploadThumbnail = async (req, res) => {
   }
 };
 
+// Helper: Download a remote URL to a local file path
+const downloadToTemp = (url, destPath) => {
+  return new Promise((resolve, reject) => {
+    const proto = url.startsWith('https') ? require('https') : require('http');
+    const file = fs.createWriteStream(destPath);
+    proto.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+        return;
+      }
+      res.pipe(file);
+      file.on('finish', () => file.close(resolve));
+    }).on('error', (err) => {
+      fs.unlink(destPath, () => {});
+      reject(err);
+    });
+  });
+};
+
+// Helper: Get video duration in seconds using ffprobe
+const getVideoDuration = (filePath) => {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) return reject(err);
+      resolve(metadata.format.duration || 60);
+    });
+  });
+};
+
 // 2. Generate Thumbnails from S3 URL
+// Downloads the video locally first (same approach as hlsTranscoder) so ffmpeg
+// can seek reliably even if the S3 bucket is private / not streamable.
 const generateThumbnails = async (req, res) => {
+  const tempDir = path.join(__dirname, '../tmp_thumbs');
+  const sessionId = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+  const localVideoPath = path.join(tempDir, `video-${sessionId}.mp4`);
+
   try {
     const { videoUrl } = req.body;
     if (!videoUrl) return res.status(400).json({ message: "videoUrl is required" });
 
-    // We need to download a snippet or stream from S3 to a local temp file for efficient seeking
-    // Or specific ffmpeg protocols. Using a temp file is most reliable.
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-    // However, for this environment, let's try reading directly if possible or fail gracefully.
-    // Direct HTTPS read with ffmpeg usually works if the URL is public or signed.
+    // Step 1: Download video to temp file so ffmpeg can seek by time
+    console.log('[Thumbs] Downloading video for thumbnail generation...');
+    await downloadToTemp(videoUrl, localVideoPath);
+    console.log('[Thumbs] Download complete, probing duration...');
 
-    // Temporary implementation: Generate 3 screenshots
-    const screenshots = [];
-    const timestamps = ['10%', '50%', '90%'];
-    const tempDir = path.join(__dirname, '../tmp_thumbs');
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    // Step 2: Get actual video duration so we can pick good timestamps
+    const duration = await getVideoDuration(localVideoPath);
+    console.log(`[Thumbs] Duration: ${duration.toFixed(1)}s`);
 
-    // We will return a Promise that resolves when all thumbs are generated & uploaded
-    // Note: This is an expensive operation. Ideally should be a background job.
+    // Pick timestamps at 15%, 50%, 85% of the video (avoiding black intros/outros)
+    const timestamps = [
+      Math.max(1, duration * 0.15),
+      duration * 0.50,
+      Math.min(duration - 1, duration * 0.85),
+    ].map(t => parseFloat(t.toFixed(2)));
 
-    // For MVP, we'll try to do it specifically for one timestamp to verify flow
-
-    // Mocking the generation for speed if ffmpeg is likely to timeout or fail on stream
-    // But let's try to implement a basic one.
-
-    // NOTE: Generating from a remote URL often requires a lot of bandwidth (downloading video).
-    // A safer MVP approach is to allow the user to Upload a thumbnail OR we just return placeholders for now
-    // if ffmpeg isn't fully set up.
-    // But the user EXPLICITLY asked for it.
-
-    // Let's assume we can spawn ffmpeg.
-
+    // Step 3: Extract a frame at each timestamp and upload to S3
     const processScreenshot = (timestamp, i) => {
-      return new Promise((resolve, reject) => {
-        const filename = `thumb-${Date.now()}-${i}.png`;
+      return new Promise((resolve) => {
+        const filename = `thumb-${sessionId}-${i}.jpg`;
         const filepath = path.join(tempDir, filename);
 
-        ffmpeg(videoUrl)
-          .screenshots({
-            timestamps: [timestamp],
-            filename: filename,
-            folder: tempDir,
-            size: '320x180'
-          })
+        ffmpeg(localVideoPath)
+          .seekInput(timestamp)
+          .frames(1)
+          .size('1280x720')
+          .output(filepath)
           .on('end', async () => {
-            // Upload to S3
-            const fileContent = fs.readFileSync(filepath);
-            const uploadParams = {
-              Bucket: process.env.AWS_BUCKET_NAME_THUMBNAILS,
-              Key: filename,
-              Body: fileContent,
-              ContentType: 'image/png'
-            };
-
             try {
-              // Using S3 Client to upload
-              await s3.send(new PutObjectCommand(uploadParams));
-              // Construct public URL (assuming virtual-hosted style or constructing matching MulterS3)
-              // Usually: https://BUCKET.s3.REGION.amazonaws.com/KEY
+              const fileContent = fs.readFileSync(filepath);
+              await s3.send(new PutObjectCommand({
+                Bucket: process.env.AWS_BUCKET_NAME_THUMBNAILS,
+                Key: filename,
+                Body: fileContent,
+                ContentType: 'image/jpeg',
+              }));
               const location = `https://${process.env.AWS_BUCKET_NAME_THUMBNAILS}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
-
-              // Cleanup temp
               fs.unlinkSync(filepath);
-
+              console.log(`[Thumbs] Uploaded thumbnail ${i + 1}: ${location}`);
               resolve(location);
-            } catch (e) {
-              reject(e);
+            } catch (uploadErr) {
+              console.error(`[Thumbs] S3 upload failed for thumb ${i}:`, uploadErr.message);
+              resolve(null); // Don't block — skip this one
             }
           })
           .on('error', (err) => {
-            console.error("FFmpeg error:", err);
-            // Fallback placeholder if ffmpeg fails (e.g. codec issue)
-            resolve(`https://placehold.co/600x400?text=Thumb+Gen+Error+${i}`);
-          });
+            console.error(`[Thumbs] FFmpeg error for thumb ${i}:`, err.message);
+            resolve(null); // Non-fatal — skip this thumbnail
+          })
+          .run();
       });
     };
 
-    // Run sequential or parallel? Parallel might choke bandwidth. Let's do parallel 3.
-    const promises = timestamps.map((ts, i) => processScreenshot(ts, i));
+    // Run all 3 in parallel
+    const results = await Promise.all(timestamps.map((ts, i) => processScreenshot(ts, i)));
 
-    const uploadedThumbs = await Promise.all(promises);
+    // Filter out any nulls (failed frames) before sending response
+    const uploadedThumbs = results.filter(Boolean);
 
     res.status(200).json({ thumbnails: uploadedThumbs });
 
   } catch (error) {
-    console.error("Thumbnail gen error:", error);
+    console.error('[Thumbs] Thumbnail generation failed:', error.message);
     res.status(500).json({ message: "Thumbnail generation failed", error: error.message });
+  } finally {
+    // Always clean up the downloaded video
+    if (fs.existsSync(localVideoPath)) {
+      try { fs.unlinkSync(localVideoPath); } catch (_) {}
+    }
   }
 };
 
@@ -244,8 +269,9 @@ const publishVideo = async (req, res) => {
       thumbnail: thumbnailUrl || "https://placehold.co/600x400?text=No+Thumbnail",
       genres: parsedPlaylists,
       shortCode,
-      userId: req.user._id, // Assign video to the logged-in user
-      scheduledPublishDate: scheduledPublishDate || null
+      userId: req.user._id,
+      scheduledPublishDate: scheduledPublishDate || null,
+      transcodingStatus: 'pending', // HLS not ready yet
     });
 
     const savedVideo = await newVideo.save();
@@ -266,10 +292,34 @@ const publishVideo = async (req, res) => {
       }
     }
 
-    res.status(201).json({ message: "Video published successfully", video: savedVideo });
+    // ── Fire HLS transcoding in the background (non-blocking) ──────────────
+    // We respond to the client immediately; transcoding runs async.
+    // The frontend polls GET /api/videos/:id/transcode-status to know when ready.
+    transcodeVideoToHLS(String(savedVideo._id), videoUrl).catch((err) =>
+      console.error('[HLS] Background transcode error:', err.message)
+    );
+
+    res.status(201).json({
+      message: "Video published — HLS transcoding started in background",
+      video: savedVideo,
+    });
 
   } catch (error) {
     res.status(500).json({ message: "Publish failed", error: error.message });
+  }
+};
+
+// 4. Get HLS transcode status — frontend polls this after upload
+const getTranscodeStatus = async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id).select('transcodingStatus hlsUrl');
+    if (!video) return res.status(404).json({ message: 'Video not found' });
+    res.status(200).json({
+      transcodingStatus: video.transcodingStatus,
+      hlsUrl: video.hlsUrl || null,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching transcode status', error: error.message });
   }
 };
 
@@ -398,6 +448,7 @@ module.exports = {
   uploadThumbnail,
   generateThumbnails,
   publishVideo,
+  getTranscodeStatus,
   incrementViews,
   incrementLikes,
   decrementLikes,

@@ -13,6 +13,13 @@ const videoSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Verified Uploader
   scheduledPublishDate: { type: Date }, // Feature: Scheduled Publishing
   createdAt: { type: Date, default: Date.now },
+  // HLS adaptive streaming fields
+  hlsUrl: { type: String, default: null },           // S3 URL of master.m3u8 once transcoding is done
+  transcodingStatus: {
+    type: String,
+    enum: ['pending', 'processing', 'ready', 'failed'],
+    default: 'pending',
+  },
 });
 
 const Video = mongoose.model("Video", videoSchema);

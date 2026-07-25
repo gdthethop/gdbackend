@@ -9,6 +9,7 @@ package-lock.json
 
 # Temporary files
 tmp_thumbs/
+tmp_hls/
 *.log
 
 # OS files

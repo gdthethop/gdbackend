@@ -8,7 +8,8 @@ const userSchema = new mongoose.Schema({
     userId: { type: String, required: true },
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    password: { type: String, required: false }, // Optional for Google OAuth users
+    googleId: { type: String, sparse: true },    // Google OAuth sub ID
     profileIcon: { type: String },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },

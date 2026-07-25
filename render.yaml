@@ -7,7 +7,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm install
+    buildCommand: apt-get install -y ffmpeg && npm install
     startCommand: npm start
     healthCheckPath: /
     envVars:
