@@ -9,6 +9,7 @@ const http     = require('http');
 const { s3 }   = require('../config/s3');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const { transcodeVideoToHLS } = require('./hlsTranscoder');
+const { toCdnUrl } = require('../config/cdn');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -350,7 +351,7 @@ const getTranscodeStatus = async (req, res) => {
   try {
     const video = await Video.findById(req.params.id).select('transcodingStatus hlsUrl');
     if (!video) return res.status(404).json({ message: 'Video not found' });
-    res.status(200).json({ transcodingStatus: video.transcodingStatus, hlsUrl: video.hlsUrl || null });
+    res.status(200).json({ transcodingStatus: video.transcodingStatus, hlsUrl: toCdnUrl(video.hlsUrl) || null });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching transcode status', error: error.message });
   }

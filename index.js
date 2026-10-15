@@ -34,12 +34,17 @@ const db = mongoose.connection;
 db.on('connected',    () => console.log('✅ MongoDB connected'));
 db.on('error',   (err) => console.error('❌ MongoDB connection error:', err));
 db.on('disconnected', () => console.warn('⚠️  MongoDB disconnected'));
+// Re-queue any HLS jobs that were interrupted by a restart
+db.once('open', () => require('./controllers/hlsTranscoder').resumeInterruptedJobs());
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 const corsOptions = { origin: true, credentials: true };
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Handle preflight requests for all routes
 app.use(express.json());
+
+// Lightweight health check — point an uptime pinger here to stop free-tier sleep
+app.get('/healthz', (req, res) => res.status(200).send('ok'));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth',            authRoutes);
