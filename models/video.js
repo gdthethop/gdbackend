@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { toCdnUrl } = require("../config/cdn");
 
 const videoSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -19,6 +20,18 @@ const videoSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'processing', 'ready', 'failed'],
     default: 'pending',
+  },
+  transcodingStartedAt: { type: Date, default: null },
+  duration: { type: Number, default: null },         // seconds, filled in by the transcoder
+});
+
+// When CDN_BASE_URL is configured (e.g. CloudFront), rewrite S3 media URLs in
+// every API response so viewers fetch from the nearest edge instead of S3.
+videoSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    if (ret.hlsUrl) ret.hlsUrl = toCdnUrl(ret.hlsUrl);
+    if (ret.link) ret.link = toCdnUrl(ret.link);
+    return ret;
   },
 });
 
